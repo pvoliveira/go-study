@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"log"
 	"net/http"
 
@@ -11,15 +13,39 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello gorilla/mux!\n"))
 }
 
-func productsHandler(w http.ResponseWriter, r *http.Request) {
+func keyPutHandler(w http.ResponseWriter, r *http.Request) {
+	b, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	vars := mux.Vars(r)
+
+	_, errGet := Get(vars["key"])
+
+	err = Put(vars["key"], string(b))
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if errors.Is(errGet, ErrorNoSuchKey) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func keyGetHandler(w http.ResponseWriter, r *http.Request) {
 	logVars(r)
 }
 
-func articlesCategoryHandler(w http.ResponseWriter, r *http.Request) {
-	logVars(r)
-}
-
-func articleHandler(w http.ResponseWriter, r *http.Request) {
+func keyDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	logVars(r)
 }
 
@@ -35,9 +61,9 @@ func main() {
 
 	r.HandleFunc("/", handler)
 
-	r.HandleFunc("/products/{key}", productsHandler)
-	r.HandleFunc("/articles/{category}/", articlesCategoryHandler)
-	r.HandleFunc("/articles/{category}/{id:[0-9]+}", articleHandler)
+	r.HandleFunc("/v1/key/{key}", keyPutHandler).Methods("PUT")
+	r.HandleFunc("/v1/key/{key}", keyGetHandler).Methods("GET")
+	r.HandleFunc("/v1/key/{key}", keyDeleteHandler).Methods("DELETE")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
