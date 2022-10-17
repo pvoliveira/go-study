@@ -18,7 +18,7 @@ func keyPutHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -29,24 +29,47 @@ func keyPutHandler(w http.ResponseWriter, r *http.Request) {
 	err = Put(vars["key"], string(b))
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if errors.Is(errGet, ErrorNoSuchKey) {
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusCreated)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func keyGetHandler(w http.ResponseWriter, r *http.Request) {
-	logVars(r)
+	vars := mux.Vars(r)
+
+	value, err := Get(vars["key"])
+
+	if err != nil {
+		if errors.Is(err, ErrorNoSuchKey) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		return
+	}
+
+	w.Write([]byte(value))
 }
 
 func keyDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	logVars(r)
+	vars := mux.Vars(r)
+
+	err := Delete(vars["key"])
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func logVars(r *http.Request) {
