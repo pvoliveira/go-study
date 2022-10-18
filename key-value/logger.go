@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 )
@@ -8,6 +9,9 @@ import (
 type TransactionLogger interface {
 	WriteDelete(key string)
 	WritePut(key, value string)
+	Err() <-chan error
+	ReadEvents() (<-chan EventLog, <-chan error)
+	Run()
 }
 
 type EventType byte
@@ -66,6 +70,45 @@ func (l *FileTransactionLogger) Run() {
 			}
 		}
 	}()
+}
+
+func (l *FileTransactionLogger) ReadEvents() (<-chan EventLog, <-chan error) {
+	scanner := bufio.NewScanner(l.file)
+	outEvent := make(chan EventLog)
+	outError := make(chan error, 1)
+
+	go func() {
+		var e EventLog
+
+		defer close(outEvent)
+		defer close(outError)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if _, err := fmt.Sscanf(line, "%d\t%d\t%s\t%s",
+				&e.Seq, &e.Type, &e.Key, &e.Value); err != nil {
+
+				outError <- fmt.Errorf("input parse error: %w", err)
+				return
+			}
+
+			if l.lastSequence >= e.Seq {
+				outError <- fmt.Errorf("transaction numbers out of sequence")
+			}
+
+			l.lastSequence = e.Seq
+
+			outEvent <- e
+		}
+
+		if err := scanner.Err(); err != nil {
+			outError <- fmt.Errorf("transaction log read failure: %w", err)
+			return
+		}
+	}()
+
+	return outEvent, outError
 }
 
 func NewFileTransactionLogger(path string) (TransactionLogger, error) {

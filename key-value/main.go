@@ -2,12 +2,44 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
+
+var logger TransactionLogger
+
+func initTransactionLogger() error {
+	var err error
+
+	logger, err = NewFileTransactionLogger("transaction.log")
+	if err != nil {
+		return fmt.Errorf("failed to create event logger: %w", err)
+	}
+
+	events, errors := logger.ReadEvents()
+	e, ok := EventLog{}, true
+
+	for ok && err == nil {
+		select {
+		case err, ok = <-errors:
+		case e, ok = <-events:
+			switch e.Type {
+			case EventDelete:
+				err = Delete(e.Key)
+			case EventPut:
+				err = Put(e.Key, e.Value)
+			}
+		}
+	}
+
+	logger.Run()
+
+	return err
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello gorilla/mux!\n"))
@@ -32,6 +64,8 @@ func keyPutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	logger.WritePut(vars["key"], string(b))
 
 	if errors.Is(errGet, ErrorNoSuchKey) {
 		w.WriteHeader(http.StatusCreated)
@@ -69,17 +103,14 @@ func keyDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.WriteDelete(vars["key"])
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func logVars(r *http.Request) {
-	vars := mux.Vars(r)
-	for k, v := range vars {
-		log.Printf("%v: %v", k, v)
-	}
-}
-
 func main() {
+	initTransactionLogger()
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", handler)
