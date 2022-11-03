@@ -41,10 +41,6 @@ func initTransactionLogger() error {
 	return err
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello gorilla/mux!\n"))
-}
-
 func keyPutHandler(w http.ResponseWriter, r *http.Request) {
 	b, err := io.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -112,8 +108,6 @@ func main() {
 	initTransactionLogger()
 
 	r := mux.NewRouter()
-
-	r.HandleFunc("/", handler)
 
 	r.HandleFunc("/v1/key/{key}", keyPutHandler).Methods("PUT")
 	r.HandleFunc("/v1/key/{key}", keyGetHandler).Methods("GET")
