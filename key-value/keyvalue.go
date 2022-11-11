@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"sync"
 )
@@ -14,7 +16,9 @@ func Put(key string, value string) error {
 	store.Lock()
 	defer store.Unlock()
 
-	store.m[key] = value
+	encodedKey := encodeKey(key)
+
+	store.m[encodedKey] = value
 
 	return nil
 }
@@ -25,7 +29,9 @@ func Get(key string) (string, error) {
 	store.RLock()
 	defer store.RUnlock()
 
-	value, ok := store.m[key]
+	encodedKey := encodeKey(key)
+
+	value, ok := store.m[encodedKey]
 
 	if !ok {
 		return "", ErrorNoSuchKey
@@ -34,11 +40,19 @@ func Get(key string) (string, error) {
 	return value, nil
 }
 
+func encodeKey(key string) string {
+	keyHash := sha256.Sum256([]byte(key))
+
+	return hex.EncodeToString(keyHash[:])
+}
+
 func Delete(key string) error {
 	store.Lock()
 	defer store.Unlock()
 
-	delete(store.m, key)
+	encodedKey := encodeKey(key)
+
+	delete(store.m, encodedKey)
 
 	return nil
 }

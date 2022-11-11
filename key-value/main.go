@@ -26,6 +26,7 @@ func initTransactionLogger() error {
 	for ok && err == nil {
 		select {
 		case err, ok = <-errors:
+			log.Writer()
 		case e, ok = <-events:
 			switch e.Type {
 			case EventDelete:
@@ -114,4 +115,6 @@ func main() {
 	r.HandleFunc("/v1/key/{key}", keyDeleteHandler).Methods("DELETE")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
+
+	logger.Close()
 }

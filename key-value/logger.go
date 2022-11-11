@@ -12,6 +12,7 @@ type TransactionLogger interface {
 	Err() <-chan error
 	ReadEvents() (<-chan EventLog, <-chan error)
 	Run()
+	Close()
 }
 
 type EventType byte
@@ -56,6 +57,8 @@ func (l *FileTransactionLogger) Run() {
 	l.errors = errors
 
 	go func() {
+		defer l.file.Close()
+
 		for e := range events {
 			l.lastSequence++
 
@@ -70,6 +73,10 @@ func (l *FileTransactionLogger) Run() {
 			}
 		}
 	}()
+}
+
+func (l *FileTransactionLogger) Close() {
+	close(l.events)
 }
 
 func (l *FileTransactionLogger) ReadEvents() (<-chan EventLog, <-chan error) {
